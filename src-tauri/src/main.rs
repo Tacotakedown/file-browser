@@ -13,6 +13,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             ssh_client: Mutex::new(None),
+            connection_config: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             connect,

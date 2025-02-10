@@ -13,7 +13,7 @@ pub struct FileEntry {
     modified: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConnectionConfig {
     host: String,
     username: String,
@@ -65,16 +65,33 @@ impl SshClient {
         Ok(file_entries)
     }
 
-    pub fn download_file(
+    pub fn download_file<F>(
         &self,
         remote_path: &str,
         local_path: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+        progress_callback: F,
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where
+        F: Fn(u64, u64),
+    {
         let sftp = self.session.sftp()?;
         let mut remote_file = sftp.open(Path::new(remote_path))?;
         let mut local_file = std::fs::File::create(local_path)?;
 
-        std::io::copy(&mut remote_file, &mut local_file)?;
+        let stat = remote_file.stat()?;
+        let total_size = stat.size.unwrap_or(0);
+        let mut bytes_read = 0u64;
+
+        let mut buffer = [0u8; 32768];
+        loop {
+            let read = remote_file.read(&mut buffer)?;
+            if read == 0 {
+                break;
+            }
+            local_file.write_all(&mut buffer[..read])?;
+            bytes_read += read as u64;
+            progress_callback(bytes_read, total_size);
+        }
         Ok(())
     }
 

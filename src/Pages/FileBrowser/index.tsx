@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/darkMode";
 import { save } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
 
 const FileBrowser = () => {
   const [currentPath, setCurrentPath] = useState<string>("/home/tacotakedown/");
@@ -89,13 +90,24 @@ const FileBrowser = () => {
       });
 
       if (savePath) {
+        const downloadId = Math.random().toString(36).substring(2, 9);
+        const unlisten = await listen("download-progress", (event) => {
+          const [id, progress] = event.payload;
+          if (id === downloadId) {
+            console.log("Download Progress: ", progress, "%");
+          }
+        });
+
         await invoke("download_file", {
           remotePath: file.path,
           localPath: savePath,
+          downloadId: downloadId,
         });
+
+        unlisten();
       }
     } catch (error) {
-      console.error("Download failed:", error);
+      console.error("Failed to download file:", error);
     }
   };
 
@@ -105,6 +117,10 @@ const FileBrowser = () => {
       loadFiles();
     }
   }, [isConnected]);
+
+  useEffect(() => {
+    loadFiles();
+  }, [currentPath]);
 
   return (
     <div className="p-4">
